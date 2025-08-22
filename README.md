@@ -1,11 +1,9 @@
 Smart Review Analyzer & Recommender
 
-Intermediate Django app that analyzes pasted/uploaded product reviews, visualizes insights, and suggests products.
-
 Tech
 - Django (backend, SQLite)
 - TextBlob + simple keyword emotions (NLP)
-- wordcloud (server-generated PNG)
+- Recommendation Engine: Scikit-learn (TF-IDF + Cosine Similarity for content-based filtering)
 - Bootstrap 5 + Chart.js (frontend)
 
 Local Setup
