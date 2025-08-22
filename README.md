@@ -1,10 +1,26 @@
-Smart Review Analyzer & Recommender
+🌟 Smart Review Analyzer & Recommender
 
-Tech
-- Django (backend, SQLite)
-- TextBlob + simple keyword emotions (NLP)
-- Recommendation Engine: Scikit-learn (TF-IDF + Cosine Similarity for content-based filtering)
-- Bootstrap 5 + Chart.js (frontend)
+An AI-powered web app that analyzes customer reviews to extract sentiment, highlight key insights, and recommend relevant products. Built for rapid prototyping and hackathons.
+
+🔑 Features
+
+Sentiment Analysis → Detects if reviews are positive, negative, or neutral using NLP (TextBlob + custom keyword patterns).
+
+Keyword Insights → Word cloud + charts to visualize most common words and trends.
+
+Product Recommendations → Suggests products based on user review preferences with TF-IDF + Cosine Similarity.
+
+Interactive Dashboard → Clean charts (Chart.js), color-coded sentiments, and explainable recommendations.
+
+🛠️ Tech Stack
+
+Backend: Django + SQLite
+
+NLP: TextBlob + custom keyword heuristics
+
+Recommendation Engine: Scikit-learn (TF-IDF + Cosine Similarity, content-based filtering)
+
+Frontend: Bootstrap 5 + Chart.js
 
 Local Setup
 1) Create venv and install deps
@@ -36,8 +52,31 @@ Pages
 - `/dashboard/` Charts, word cloud, top words, recommendations
 - `/about/`, `/team/`
 
-Notes
-- Colors: primary #2563EB, positive #16A34A, negative #DC2626, neutral #FACC15
-- Word cloud saved at `static/wordcloud.png` after analysis
+📄 Pages
+
+/ → Home (hero + features)
+
+/analyze/ → Review Input Page (write a review, see sentiment & keywords)
+
+/dashboard/ → Dashboard (charts, word cloud, top words, recommendations)
+
+/about/, /team/ → Project + team details
+
+🎨 Design Notes
+
+Colors:
+
+Primary: #2563EB (blue)
+
+Positive: #16A34A (green)
+
+Negative: #DC2626 (red)
+
+Neutral: #FACC15 (yellow)
+
+
+🚀 Why This Project?
+
+Understanding customer reviews is messy. Our solution makes it simple by combining NLP-powered sentiment analysis with a lightweight recommendation engine to give both insights and suggestions in one place. Perfect for businesses to boost engagement and sales while keeping the UX simple and explainable.
 
 
