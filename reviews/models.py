@@ -5,41 +5,7 @@ from django.utils import timezone
 from decimal import Decimal
 
 
-class Review(models.Model):
-    raw_text = models.TextField()
-    created_at = models.DateTimeField(auto_now_add=True)
-
-    def __str__(self) -> str:
-        return self.raw_text[:50]
-
-
-class AnalysisResult(models.Model):
-    SENTIMENT_CHOICES = [
-        ("positive", "Positive"),
-        ("negative", "Negative"),
-        ("neutral", "Neutral"),
-    ]
-
-    EMOTION_CHOICES = [
-        ("happy", "Happy"),
-        ("angry", "Angry"),
-        ("sad", "Sad"),
-        ("surprised", "Surprised"),
-        ("neutral", "Neutral"),
-    ]
-
-    review = models.OneToOneField(Review, on_delete=models.CASCADE, related_name="analysis")
-    sentiment = models.CharField(max_length=16, choices=SENTIMENT_CHOICES)
-    polarity = models.FloatField(default=0.0)
-    subjectivity = models.FloatField(default=0.0)
-    emotion = models.CharField(max_length=16, choices=EMOTION_CHOICES, default="neutral")
-    created_at = models.DateTimeField(auto_now_add=True)
-
-    def __str__(self) -> str:
-        return f"{self.review_id} - {self.sentiment}/{self.emotion}"
-
-
-class Product(models.Model):
+class Item(models.Model):
     CATEGORY_CHOICES = [
         ('electronics', 'Electronics'),
         ('fashion', 'Fashion & Apparel'),
@@ -73,21 +39,59 @@ class Product(models.Model):
         return self.name
 
     def get_keywords_list(self):
-        """Return keywords as a list for easier processing"""
         if self.keywords:
             return [kw.strip().lower() for kw in self.keywords.split(',')]
         return []
 
+
+class Review(models.Model):
+    user = models.ForeignKey(User, on_delete=models.CASCADE, null=True, blank=True)
+    category = models.CharField(max_length=50, choices=Item.CATEGORY_CHOICES, null=True, blank=True)
+    raw_text = models.TextField()
+    sentiment = models.CharField(max_length=20, blank=True, null=True)
+    score = models.FloatField(default=0.0)
+    created_at = models.DateTimeField(auto_now_add=True)
+
+    def __str__(self) -> str:
+        return self.raw_text[:50]
+
+
+class AnalysisResult(models.Model):
+    SENTIMENT_CHOICES = [
+        ("positive", "Positive"),
+        ("negative", "Negative"),
+        ("neutral", "Neutral"),
+    ]
+
+    EMOTION_CHOICES = [
+        ("happy", "Happy"),
+        ("angry", "Angry"),
+        ("sad", "Sad"),
+        ("surprised", "Surprised"),
+        ("neutral", "Neutral"),
+    ]
+
+    review = models.OneToOneField(Review, on_delete=models.CASCADE, related_name="analysis")
+    sentiment = models.CharField(max_length=16, choices=SENTIMENT_CHOICES)
+    polarity = models.FloatField(default=0.0)
+    subjectivity = models.FloatField(default=0.0)
+    emotion = models.CharField(max_length=16, choices=EMOTION_CHOICES, default="neutral")
+    created_at = models.DateTimeField(auto_now_add=True)
+
+    def __str__(self) -> str:
+        return f"{self.review_id} - {self.sentiment}/{self.emotion}"
+
+
 class Recommendation(models.Model):
     user = models.ForeignKey(User, on_delete=models.CASCADE)
-    product = models.ForeignKey(Product, on_delete=models.CASCADE)
+    item = models.ForeignKey(Item, on_delete=models.CASCADE)
     score = models.FloatField(default=0.0, help_text="Recommendation score (0-1)")
-    reason = models.CharField(max_length=200, blank=True, help_text="Why this product was recommended")
+    reason = models.CharField(max_length=200, blank=True, help_text="Why this item was recommended")
     created_at = models.DateTimeField(auto_now_add=True)
 
     class Meta:
-        unique_together = ['user', 'product']
+        unique_together = ['user', 'item']
         ordering = ['-score', '-created_at']
 
     def __str__(self):
-        return f"{self.user.username} - {self.product.name} (Score: {self.score:.2f})"
+        return f"{self.user.username} - {self.item.name} (Score: {self.score:.2f})"

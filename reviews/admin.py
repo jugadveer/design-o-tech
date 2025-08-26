@@ -1,5 +1,5 @@
 from django.contrib import admin
-from .models import Review, AnalysisResult, Product, Recommendation
+from .models import Review, AnalysisResult, Item, Recommendation
 
 
 @admin.register(Review)
@@ -17,8 +17,8 @@ class AnalysisResultAdmin(admin.ModelAdmin):
     list_filter = ("sentiment", "emotion")
 
 
-@admin.register(Product)
-class ProductAdmin(admin.ModelAdmin):
+@admin.register(Item)
+class ItemAdmin(admin.ModelAdmin):
     list_display = ("name", "price", "category", "rating", "created_at")
     list_filter = ("category", "rating")
     search_fields = ("name", "description")
@@ -26,8 +26,6 @@ class ProductAdmin(admin.ModelAdmin):
 
 @admin.register(Recommendation)
 class RecommendationAdmin(admin.ModelAdmin):
-    list_display = ("user", "product", "score", "reason", "created_at")
+    list_display = ("user", "item", "score", "reason", "created_at")
     list_filter = ("score", "created_at")
-    search_fields = ("user__username", "product__name", "reason")
-
-# Register your models here.
+    search_fields = ("user__username", "item__name", "reason")

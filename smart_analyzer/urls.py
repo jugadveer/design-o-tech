@@ -15,7 +15,7 @@ Including another URLconf
     2. Add a URL to urlpatterns:  path('blog/', include('blog.urls'))
 """
 from django.contrib import admin
-from django.urls import path
+from django.urls import path, include
 from reviews import views as review_views
 from django.contrib.auth import views as auth_views
 
@@ -25,12 +25,13 @@ urlpatterns = [
     path('about/', review_views.about, name='about'),
     path('dashboard/', review_views.dashboard, name='dashboard'),
     path('input/', review_views.review_input, name='review_input'),
+    path('profile/', review_views.profile, name='profile'),
     path('login/', auth_views.LoginView.as_view(next_page='dashboard'), name='login'),
     path('logout/', review_views.logout_view, name='logout'),
-    path('analyze-sentiment/', review_views.analyze_sentiment, name='analyze_sentiment'),
     path('signup/', review_views.signup, name='signup'),
     
-    # Recommendation API endpoints
+    # API endpoints
+    path('api/sentiment/', review_views.analyze_sentiment, name='analyze_sentiment'),
     path('api/recommendations/', review_views.get_recommendations, name='get_recommendations'),
     path('api/recommendations/refresh/', review_views.refresh_recommendations, name='refresh_recommendations'),
 ]

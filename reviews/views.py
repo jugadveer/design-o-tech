@@ -2,10 +2,11 @@ from django.shortcuts import render, redirect
 from django.contrib.auth.decorators import login_required
 from django.contrib.auth import login as auth_login
 from django.contrib.auth.forms import UserCreationForm
-from django.http import JsonResponse, HttpRequest, HttpResponse
+from django.http import JsonResponse, HttpRequest, HttpResponse, HttpResponseRedirect
 from django.views.decorators.csrf import csrf_exempt
 from django.views.decorators.http import require_http_methods
-from .models import Review, AnalysisResult, Product, Recommendation
+from django.urls import reverse
+from .models import Review, AnalysisResult, Item, Recommendation
 from .recommendation_engine import RecommendationEngine
 import json
 import re
@@ -31,9 +32,13 @@ def _generate_wordcloud(text: str) -> None:
 @login_required
 def review_input(request: HttpRequest) -> HttpResponse:
     if request.method == "POST":
-        pasted_text = request.POST.get("reviews_text", "").strip()
+        # Get form data
+        category = request.POST.get("category", "")
+        raw_text = request.POST.get("reviews_text", "").strip()
         uploaded_file = request.FILES.get("reviews_file")
-        combined_text = pasted_text
+        
+        # Combine text from both sources
+        combined_text = raw_text
         if uploaded_file and uploaded_file.name.lower().endswith(".txt"):
             combined_text += "\n" + uploaded_file.read().decode("utf-8", errors="ignore")
 
@@ -43,37 +48,78 @@ def review_input(request: HttpRequest) -> HttpResponse:
             chunks = [c.strip() for c in combined_text.splitlines() if c.strip()]
 
         all_text = []
+        reviews_to_create = []
+        analysis_results_to_create = []
+        
         for chunk in chunks:
-            review = Review.objects.create(raw_text=chunk)
+            # Analyze sentiment first
             result = _nlp().analyze_text(chunk)
-            AnalysisResult.objects.create(
-                review=review,
+            
+            # Create review with sentiment already analyzed
+            review = Review(
+                user=request.user,
+                category=category,
+                raw_text=chunk,
+                sentiment=result["sentiment"],
+                score=result["polarity"]
+            )
+            reviews_to_create.append(review)
+            
+            # Prepare analysis result
+            analysis_result = AnalysisResult(
                 sentiment=result["sentiment"],
                 polarity=result["polarity"],
                 subjectivity=result["subjectivity"],
                 emotion=result["emotion"],
             )
+            analysis_results_to_create.append(analysis_result)
+            
             all_text.append(chunk)
-
-        _generate_wordcloud("\n".join(all_text))
-        return redirect("dashboard")
+        
+        # Bulk create reviews
+        Review.objects.bulk_create(reviews_to_create)
+        
+        # Get the created reviews and link them to analysis results
+        created_reviews = Review.objects.filter(
+            user=request.user,
+            category=category,
+            raw_text__in=all_text
+        ).order_by('-created_at')[:len(reviews_to_create)]
+        
+        # Link analysis results to reviews
+        for i, analysis_result in enumerate(analysis_results_to_create):
+            if i < len(created_reviews):
+                analysis_result.review = created_reviews[i]
+        
+        # Bulk create analysis results
+        AnalysisResult.objects.bulk_create(analysis_results_to_create)
+        
+        # Generate wordcloud asynchronously (optional)
+        try:
+            _generate_wordcloud("\n".join(all_text))
+        except:
+            pass  # Don't block on wordcloud generation
+        
+        # Clear existing recommendations to force refresh
+        Recommendation.objects.filter(user=request.user).delete()
+        
+        return HttpResponseRedirect(reverse('dashboard') + "?refresh=true")
 
     return render(request, "review_input.html")
 
 
 @login_required
 def dashboard(request):
-    """Dashboard view with sentiment analysis and recommendations"""
     user = request.user
     
-    # Get all reviews (since Review model doesn't have user field)
-    reviews = Review.objects.all()
+    # Check if we need to auto-refresh recommendations (after new review)
+    auto_refresh = request.GET.get('refresh', 'false') == 'true'
+    
+    reviews = Review.objects.filter(user=user)
     total_reviews = reviews.count()
     
-    # Get analysis results for sentiment calculation
-    analysis_results = AnalysisResult.objects.all()
+    analysis_results = AnalysisResult.objects.filter(review__user=user)
     
-    # Calculate sentiment percentages
     positive_count = analysis_results.filter(sentiment='positive').count()
     negative_count = analysis_results.filter(sentiment='negative').count()
     neutral_count = analysis_results.filter(sentiment='neutral').count()
@@ -85,33 +131,34 @@ def dashboard(request):
     # Get sentiment counts for chart
     sentiment_counts = [positive_count, negative_count, neutral_count]
     
-    # Get word frequency for word cloud
     word_freq = {}
     for review in reviews:
         words = review.raw_text.lower().split()
         for word in words:
-            if len(word) > 3:  # Only count words longer than 3 characters
+            if len(word) > 3:
                 word_freq[word] = word_freq.get(word, 0) + 1
     
-    # Get top words (limit to 20)
     top_words = sorted(word_freq.items(), key=lambda x: x[1], reverse=True)[:20]
     
-    # Get recommendations
     recommendation_engine = RecommendationEngine()
-    recommendations = recommendation_engine.get_recommendations_for_user(user, limit=5)
     
-    # Get recommended products
-    recommended_products = [rec.product for rec in recommendations]
+    # Auto-refresh recommendations if needed
+    if auto_refresh or not Recommendation.objects.filter(user=user).exists():
+        # Clear existing recommendations first to avoid duplicates
+        Recommendation.objects.filter(user=user).delete()
+        recommendations = recommendation_engine.get_diverse_recommendations(user, limit=5)
+    else:
+        recommendations = recommendation_engine.get_recommendations_for_user(user, limit=5)
     
-    # Generate recommendation insights
+    recommended_items = [rec.item for rec in recommendations]
+    
     if recommendations:
         rec_title = "Personalized Recommendations"
         rec_description = f"Based on your {total_reviews} reviews and preferences"
     else:
         rec_title = "No Recommendations Yet"
-        rec_description = "Start adding reviews to get personalized product recommendations"
+        rec_description = "Start adding reviews to get personalized item recommendations"
     
-    # Calculate average polarity (since Review doesn't have rating field)
     avg_polarity = round(analysis_results.aggregate(avg=models.Avg('polarity'))['avg'] or 0, 1)
     
     context = {
@@ -122,13 +169,46 @@ def dashboard(request):
         'sentiment_counts': sentiment_counts,
         'top_words': top_words,
         'recommendations': recommendations,
-        'recommended_products': recommended_products,
+        'recommended_items': recommended_items,
         'rec_title': rec_title,
         'rec_description': rec_description,
-        'avg_rating': avg_polarity,  # Using polarity as rating
+        'avg_rating': avg_polarity,
+        'auto_refresh': auto_refresh,
     }
     
     return render(request, 'dashboard.html', context)
+
+
+@login_required
+def profile(request):
+    user = request.user
+    
+    reviews = Review.objects.filter(user=user).order_by('-created_at')
+    
+    categories = reviews.values_list('category', flat=True).distinct()
+    category_stats = {}
+    
+    for category in categories:
+        category_reviews = reviews.filter(category=category)
+        positive_count = category_reviews.filter(sentiment='positive').count()
+        total_count = category_reviews.count()
+        category_stats[category] = {
+            'total': total_count,
+            'positive': positive_count,
+            'positive_pct': round((positive_count / total_count * 100) if total_count > 0 else 0, 1)
+        }
+    
+    recommendations = Recommendation.objects.filter(user=user).order_by('-created_at')[:5]
+    
+    context = {
+        'user': user,
+        'reviews': reviews,
+        'category_stats': category_stats,
+        'recommendations': recommendations,
+        'total_reviews': reviews.count(),
+    }
+    
+    return render(request, 'profile.html', context)
 
 
 def about(request: HttpRequest) -> HttpResponse:
@@ -197,13 +277,13 @@ def get_recommendations(request):
         rec_data = []
         for rec in recommendations:
             rec_data.append({
-                'id': rec.product.id,
-                'name': rec.product.name,
-                'description': rec.product.description,
-                'category': rec.product.get_category_display(),
-                'price': float(rec.product.price),
-                'rating': rec.product.rating,
-                'image_url': rec.product.image_url,
+                'id': rec.item.id,
+                'name': rec.item.name,
+                'description': rec.item.description,
+                'category': rec.item.get_category_display(),
+                'price': float(rec.item.price),
+                'rating': rec.item.rating,
+                'image_url': rec.item.image_url,
                 'score': rec.score,
                 'reason': rec.reason
             })
@@ -230,9 +310,9 @@ def refresh_recommendations(request):
         # Clear existing recommendations
         Recommendation.objects.filter(user=user).delete()
         
-        # Generate new recommendations
+        # Generate new diverse recommendations
         recommendation_engine = RecommendationEngine()
-        recommendations = recommendation_engine.generate_recommendations(user, limit=limit)
+        recommendations = recommendation_engine.get_diverse_recommendations(user, limit=limit)
         
         return JsonResponse({
             'success': True,
