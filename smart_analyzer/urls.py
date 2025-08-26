@@ -16,6 +16,8 @@ Including another URLconf
 """
 from django.contrib import admin
 from django.urls import path, include
+from django.conf import settings
+from django.conf.urls.static import static
 from reviews import views as review_views
 from django.contrib.auth import views as auth_views
 
@@ -35,3 +37,11 @@ urlpatterns = [
     path('api/recommendations/', review_views.get_recommendations, name='get_recommendations'),
     path('api/recommendations/refresh/', review_views.refresh_recommendations, name='refresh_recommendations'),
 ]
+
+# Serve static files in development
+if settings.DEBUG:
+    urlpatterns += static(settings.STATIC_URL, document_root=settings.STATIC_ROOT)
+    urlpatterns += static(settings.MEDIA_URL, document_root=settings.MEDIA_ROOT)
+else:
+    # Serve static files in production
+    urlpatterns += static(settings.STATIC_URL, document_root=settings.STATIC_ROOT)
