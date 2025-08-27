@@ -1,6 +1,6 @@
 from django.shortcuts import render, redirect
 from django.contrib.auth.decorators import login_required
-from django.contrib.auth import login as auth_login
+from django.contrib.auth import login as auth_login, authenticate
 from django.contrib.auth.forms import UserCreationForm
 from django.http import JsonResponse, HttpRequest, HttpResponse, HttpResponseRedirect
 from django.views.decorators.csrf import csrf_exempt
@@ -231,6 +231,28 @@ def signup(request: HttpRequest) -> HttpResponse:
         else:
             # If form is invalid, redirect back to home with error
             return redirect("home")
+    return redirect("home")
+
+
+def login_view(request: HttpRequest) -> HttpResponse:
+    """Handle login form submission from modal"""
+    if request.method == "POST":
+        username = request.POST.get('username')
+        password = request.POST.get('password')
+        
+        if username and password:
+            user = authenticate(request, username=username, password=password)
+            if user is not None:
+                auth_login(request, user)
+                return redirect("dashboard")
+            else:
+                # Invalid credentials, redirect to home
+                return redirect("home")
+        else:
+            # Missing credentials, redirect to home
+            return redirect("home")
+    
+    # GET request, redirect to home
     return redirect("home")
 
 

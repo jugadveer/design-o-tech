@@ -19,7 +19,6 @@ from django.urls import path, include
 from django.conf import settings
 from django.conf.urls.static import static
 from reviews import views as review_views
-from django.contrib.auth import views as auth_views
 
 urlpatterns = [
     path('admin/', admin.site.urls),
@@ -28,14 +27,12 @@ urlpatterns = [
     path('dashboard/', review_views.dashboard, name='dashboard'),
     path('input/', review_views.review_input, name='review_input'),
     path('profile/', review_views.profile, name='profile'),
-    path('login/', auth_views.LoginView.as_view(next_page='dashboard'), name='login'),
+    path('login/', review_views.login_view, name='login'),
     path('logout/', review_views.logout_view, name='logout'),
     path('signup/', review_views.signup, name='signup'),
     
-    # API endpoints
-    path('api/sentiment/', review_views.analyze_sentiment, name='analyze_sentiment'),
-    path('api/recommendations/', review_views.get_recommendations, name='get_recommendations'),
-    path('api/recommendations/refresh/', review_views.refresh_recommendations, name='refresh_recommendations'),
+    # Include app URLs for API endpoints
+    path('', include('reviews.urls')),
 ]
 
 # Serve static files in development
